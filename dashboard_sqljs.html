@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Unpivot RFM Cohorts</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 20px }
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left }
+    th { background: #f4f4f4 }
+    select { margin-right: 10px }
+  </style>
+</head>
+<body>
+  <h1>Unpivot RFM Cohorts</h1>
+
+  <label>R_label:
+    <select id="filterR"></select>
+  </label>
+  <label>F_label:
+    <select id="filterF"></select>
+  </label>
+  <label>M_label:
+    <select id="filterM"></select>
+  </label>
+  <label>Score_concat:
+    <select id="filterScore"></select>
+  </label>
+
+  <table id="dataTable">
+    <thead>
+      <tr>
+        <th>idCustomer</th>
+        <th>Estado_Column</th>
+        <th>Fecha</th>
+        <th>Estado</th>
+        <th>R_label</th>
+        <th>F_label</th>
+        <th>M_label</th>
+        <th>Scores_Concat</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function init() {
+      // Cargar sql.js
+      const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` })
+
+      // Cargar tu archivo sqlite (carmax_v3.db)
+      const resp = await fetch("carmax_v3.db")
+      const buf = await resp.arrayBuffer()
+      const db = new SQL.Database(new Uint8Array(buf))
+
+      // Ejecutar la query de tu SQL
+      const query = `
+        SELECT idCustomer, Estado_Column, Fecha, Estado,
+               R_label, F_label, M_label, Scores_Concat
+        FROM Unpivot_RFM_Cohort
+      `
+      const result = db.exec(query)[0]
+      const columns = result.columns
+      const values = result.values
+
+      const tableBody = document.querySelector("#dataTable tbody")
+      const filters = {
+        R: document.getElementById("filterR"),
+        F: document.getElementById("filterF"),
+        M: document.getElementById("filterM"),
+        Score: document.getElementById("filterScore")
+      }
+
+      // Rellenar selects con valores únicos
+      const unique = { R: new Set(), F: new Set(), M: new Set(), Score: new Set() }
+      values.forEach(row => {
+        unique.R.add(row[4])
+        unique.F.add(row[5])
+        unique.M.add(row[6])
+        unique.Score.add(row[7])
+      })
+
+      for (const key in unique) {
+        const select = filters[key]
+        select.innerHTML = `<option value="">Todos</option>` +
+          [...unique[key]].map(v => `<option>${v}</option>`).join("")
+      }
+
+      function render() {
+        const rVal = filters.R.value
+        const fVal = filters.F.value
+        const mVal = filters.M.value
+        const sVal = filters.Score.value
+
+        tableBody.innerHTML = ""
+        values
+          .filter(row =>
+            (!rVal || row[4] === rVal) &&
+            (!fVal || row[5] === fVal) &&
+            (!mVal || row[6] === mVal) &&
+            (!sVal || row[7] === sVal)
+          )
+          .forEach(row => {
+            const tr = document.createElement("tr")
+            row.forEach(cell => {
+              const td = document.createElement("td")
+              td.textContent = cell
+              tr.appendChild(td)
+            })
+            tableBody.appendChild(tr)
+          })
+      }
+
+      Object.values(filters).forEach(sel => sel.addEventListener("change", render))
+      render()
+    }
+
+    init()
+  </script>
+</body>
+</html>
